@@ -1,0 +1,84 @@
+import Vue from 'vue/dist/vue.esm'
+import VueResource from 'vue-resource'
+
+Vue.use(VueResource)
+document.addEventListener('turbolinks:load', () => {
+    Vue.http.headers.common['X-CSRF-Token'] = document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+
+    var element = document.getElementById('team-form')
+
+    if (element != null) {
+        var id = element.dataset.id
+        var team = JSON.parse(element.dataset.team)
+        var users_attributes = JSON.parse(element.data.usersAttributes)
+        users_attributes.forEach(function (user) {
+            user._destory = null
+        })
+        team.users_attributes = users_attributes
+
+        var app = new Vue({
+            el: element,
+            data: function () {
+                return {
+                    id: id,
+                    team: team,
+                    errors: [],
+                    scrollPosition: null
+                }
+            },
+            mounted() {
+                window.addEventListener('scroll', this.updateScroll);
+            },
+            methods: {
+                updateScroll() {
+                    this.scrollPosition = window.scrollY
+                },
+                addUser: function () {
+                    this.team.users_attributes.push({
+                        id: null,
+                        name: "",
+                        email: "",
+                        _destroy: null
+                    })
+                },
+                removeUser: function (index) {
+                    var user = this.team.users_attributes[index]
+                    if (user.id == null) {
+                        this.team.users_attributes.splice(index, 1)
+                    } else {
+                        this.team.users_attributes._destroy = "1"
+                    }
+                },
+
+                undoRemove: function (index) {
+                    this.team.users_attributes[index]._destroy = null
+                },
+
+                saveTeam: function () {
+                    if (this.id == null) {
+                        this.$http.post('/team', {team: this.team}).then(response => {
+                            Turbolinks.visit(`/teams/${response.body.id}`)
+                        }, response => {
+                            console.log(response)
+
+                            if (response.status = 420) {
+                                var json = JSON.parse(response.bodyText);
+                                this.errors = json["user.email"][0]
+                            }
+                        })
+                    } else {
+                        this.$http.put(`/teams/${id}`, {team: this.team}).then(response => {
+                            Turbolinks.visit(`/teams/${response.body.id}`)
+                        }, response => {
+                            console.log(response)
+                        })
+                    }
+                },
+
+                existingTeam: function () {
+                    return this.team.id != null
+                }
+            }
+        })
+    }
+})
